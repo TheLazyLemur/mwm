@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/BurntSushi/xgb"
 	"github.com/BurntSushi/xgb/xproto"
@@ -17,11 +19,14 @@ func main() {
 
 func xStuff() {
 	go func() {
-		// go func() {
-		// 	time.Sleep(time.Second * 10)
-		// 	cmd := exec.Command("nitrogen", "--restore")
-		// 	_ = cmd.Run()
-		// }()
+		go func() {
+			time.Sleep(time.Second * 10)
+			cmd := exec.Command("nitrogen", "--restore")
+			_ = cmd.Run()
+
+			cmd = exec.Command("sxhkd", "&")
+			_ = cmd.Run()
+		}()
 
 		X, err := xgb.NewConn()
 		if err != nil {
@@ -64,7 +69,7 @@ func initialize(X *xgb.Conn) error {
 	}
 
 	// Flush the request to the X server
-	go drawWindow(X, screen)
+	// go drawWindow(X, screen)
 	X.Sync()
 
 	return nil
