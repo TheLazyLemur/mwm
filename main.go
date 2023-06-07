@@ -13,6 +13,13 @@ import (
 
 	"github.com/BurntSushi/xgb"
 	"github.com/BurntSushi/xgb/xproto"
+	"github.com/go-gl/gl/v4.6-core/gl"
+	"github.com/go-gl/glfw/v3.3/glfw"
+)
+
+const (
+	width  = 800
+	height = 600
 )
 
 func init() {
@@ -21,47 +28,95 @@ func init() {
 }
 
 func main() {
+	go xStuff()
+
+	time.Sleep(time.Second * 10)
 	// connect to the x server
 	// initialize the window manager
 	// listen for termination signals to gracefully exit
 	// event loop to handle x events
 	// Handle the event
-	newFunction()
+	err := glfw.Init()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer glfw.Terminate()
+
+	glfw.WindowHint(glfw.Resizable, glfw.False)
+	window, err := glfw.CreateWindow(width, height, "Drawing Program", nil, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	window.MakeContextCurrent()
+
+	err = gl.Init()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	version := gl.GoStr(gl.GetString(gl.VERSION))
+	fmt.Println("OpenGL version:", version)
+
+	gl.Viewport(0, 0, int32(width), int32(height))
+	gl.ClearColor(0.2, 0.3, 0.4, 1.0)
+
+	for !window.ShouldClose() {
+		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+		drawRectangle()
+
+		window.SwapBuffers()
+		glfw.PollEvents()
+	}
+
 }
 
-func newFunction() {
+func drawRectangle() {
+	gl.Begin(gl.QUADS)
+	gl.Color3f(1.0, 0.0, 0.0) // Set color to red
+	gl.Vertex2f(-0.5, -0.5)   // Bottom-left vertex
+	gl.Vertex2f(0.5, -0.5)    // Bottom-right vertex
+	gl.Vertex2f(0.5, 0.5)     // Top-right vertex
+	gl.Vertex2f(-0.5, 0.5)    // Top-left vertex
+	gl.End()
+}
+
+func xStuff() {
 	go func() {
-		time.Sleep(time.Second * 10)
-		cmd := exec.Command("nitrogen", "--restore")
-		_ = cmd.Run()
-	}()
+		go func() {
+			time.Sleep(time.Second * 10)
+			cmd := exec.Command("nitrogen", "--restore")
+			_ = cmd.Run()
+		}()
 
-	X, err := xgb.NewConn()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer X.Close()
+		X, err := xgb.NewConn()
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer X.Close()
 
-	err = initialize(X)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	setupSignalHandler()
-
-	for {
-		event, err := X.WaitForEvent()
+		err = initialize(X)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		switch event := event.(type) {
-		case xproto.MapRequestEvent:
-			handleMapRequest(X, event)
-		case xproto.ConfigureRequestEvent:
-			handleConfigureRequest(X, event)
+		setupSignalHandler()
+
+		for {
+			event, err := X.WaitForEvent()
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			switch event := event.(type) {
+			case xproto.MapRequestEvent:
+				handleMapRequest(X, event)
+			case xproto.ConfigureRequestEvent:
+				handleConfigureRequest(X, event)
+			}
 		}
-	}
+	}()
 }
 
 func initialize(X *xgb.Conn) error {
