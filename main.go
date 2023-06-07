@@ -19,42 +19,40 @@ func main() {
 
 func xStuff() {
 	go func() {
-		go func() {
-			time.Sleep(time.Second * 10)
-			cmd := exec.Command("nitrogen", "--restore")
-			_ = cmd.Run()
+		time.Sleep(time.Second * 10)
+		cmd := exec.Command("nitrogen", "--restore")
+		_ = cmd.Run()
 
-			cmd = exec.Command("sxhkd", "&")
-			_ = cmd.Run()
-		}()
-
-		X, err := xgb.NewConn()
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer X.Close()
-
-		err = initialize(X)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		setupSignalHandler()
-
-		for {
-			event, err := X.WaitForEvent()
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			switch event := event.(type) {
-			case xproto.MapRequestEvent:
-				handleMapRequest(X, event)
-			case xproto.ConfigureRequestEvent:
-				handleConfigureRequest(X, event)
-			}
-		}
+		cmd = exec.Command("sxhkd", "&")
+		_ = cmd.Run()
 	}()
+
+	X, err := xgb.NewConn()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer X.Close()
+
+	err = initialize(X)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	setupSignalHandler()
+
+	for {
+		event, err := X.WaitForEvent()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		switch event := event.(type) {
+		case xproto.MapRequestEvent:
+			handleMapRequest(X, event)
+		case xproto.ConfigureRequestEvent:
+			handleConfigureRequest(X, event)
+		}
+	}
 }
 
 func initialize(X *xgb.Conn) error {
@@ -70,6 +68,11 @@ func initialize(X *xgb.Conn) error {
 
 	// Flush the request to the X server
 	// go drawWindow(X, screen)
+
+	xproto.CreateWindow(X, screen.RootDepth, root, screen.Root,
+		0, 0, 500, 500, 0,
+		xproto.WindowClassInputOutput, screen.RootVisual, 0, []uint32{})
+
 	X.Sync()
 
 	return nil
@@ -118,54 +121,4 @@ func setupSignalHandler() {
 			os.Exit(0)
 		}
 	}()
-}
-
-func drawWindow(X *xgb.Conn, screen *xproto.ScreenInfo) {
-	// Any time a new resource (i.e., a window, pixmap, graphics context, etc.)
-	// is created, we need to generate a resource identifier.
-	// If the resource is a window, then use xproto.NewWindowId. If it's for
-	// a pixmap, then use xproto.NewPixmapId. And so on...
-	wid, _ := xproto.NewWindowId(X)
-
-	// CreateWindow takes a boatload of parameters.
-	xproto.CreateWindow(X, screen.RootDepth, wid, screen.Root,
-		0, 0, 500, 500, 0,
-		xproto.WindowClassInputOutput, screen.RootVisual, 0, []uint32{})
-
-	xproto.ChangeWindowAttributes(X, wid,
-		xproto.CwBackPixel|xproto.CwEventMask,
-		[]uint32{ // values must be in the order defined by the protocol
-			0xffffffff,
-			xproto.EventMaskStructureNotify |
-				xproto.EventMaskKeyPress |
-				xproto.EventMaskKeyRelease})
-
-	err := xproto.MapWindowChecked(X, wid).Check()
-	if err != nil {
-		fmt.Printf("Checked Error for mapping window %d: %s\n", wid, err)
-	} else {
-		fmt.Printf("Map window %d successful!\n", wid)
-	}
-
-	err = xproto.MapWindowChecked(X, 0).Check()
-	if err != nil {
-		fmt.Printf("Checked Error for mapping window 0x1: %s\n", err)
-	} else { // neva
-		fmt.Printf("Map window 0x1 successful!\n")
-	}
-
-	for {
-		ev, xerr := X.WaitForEvent()
-		if ev == nil && xerr == nil {
-			fmt.Println("Both event and error are nil. Exiting...")
-			return
-		}
-
-		if ev != nil {
-			fmt.Printf("Event: %s\n", ev)
-		}
-		if xerr != nil {
-			fmt.Printf("Error: %s\n", xerr)
-		}
-	}
 }
