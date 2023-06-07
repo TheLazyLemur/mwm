@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os/exec"
 
 	"github.com/BurntSushi/xgb"
 	"github.com/BurntSushi/xgb/xproto"
@@ -63,4 +64,7 @@ func drawWindow(X *xgb.Conn, screen *xproto.ScreenInfo) {
 			xproto.EventMaskStructureNotify |
 				xproto.EventMaskKeyPress |
 				xproto.EventMaskKeyRelease})
+
+	cmd := exec.Command("nitrogen", "--restore")
+	cmd.Run()
 }
