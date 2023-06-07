@@ -13,13 +13,6 @@ import (
 
 	"github.com/BurntSushi/xgb"
 	"github.com/BurntSushi/xgb/xproto"
-	"github.com/go-gl/gl/v4.6-core/gl"
-	"github.com/go-gl/glfw/v3.3/glfw"
-)
-
-const (
-	width  = 800
-	height = 600
 )
 
 func init() {
@@ -28,58 +21,7 @@ func init() {
 }
 
 func main() {
-	go xStuff()
-
-	time.Sleep(time.Second * 10)
-	// connect to the x server
-	// initialize the window manager
-	// listen for termination signals to gracefully exit
-	// event loop to handle x events
-	// Handle the event
-	err := glfw.Init()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer glfw.Terminate()
-
-	glfw.WindowHint(glfw.Resizable, glfw.False)
-	window, err := glfw.CreateWindow(width, height, "Drawing Program", nil, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	window.MakeContextCurrent()
-
-	err = gl.Init()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	version := gl.GoStr(gl.GetString(gl.VERSION))
-	fmt.Println("OpenGL version:", version)
-
-	gl.Viewport(0, 0, int32(width), int32(height))
-	gl.ClearColor(0.2, 0.3, 0.4, 1.0)
-
-	for !window.ShouldClose() {
-		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
-		drawRectangle()
-
-		window.SwapBuffers()
-		glfw.PollEvents()
-	}
-
-}
-
-func drawRectangle() {
-	gl.Begin(gl.QUADS)
-	gl.Color3f(1.0, 0.0, 0.0) // Set color to red
-	gl.Vertex2f(-0.5, -0.5)   // Bottom-left vertex
-	gl.Vertex2f(0.5, -0.5)    // Bottom-right vertex
-	gl.Vertex2f(0.5, 0.5)     // Top-right vertex
-	gl.Vertex2f(-0.5, 0.5)    // Top-left vertex
-	gl.End()
+	xStuff()
 }
 
 func xStuff() {
@@ -133,6 +75,7 @@ func initialize(X *xgb.Conn) error {
 	// Flush the request to the X server
 	X.Sync()
 
+	go drawWindow(X, screen)
 	return nil
 }
 
@@ -179,4 +122,86 @@ func setupSignalHandler() {
 			os.Exit(0)
 		}
 	}()
+}
+
+func drawWindow(X *xgb.Conn, screen *xproto.ScreenInfo) {
+	// Any time a new resource (i.e., a window, pixmap, graphics context, etc.)
+	// is created, we need to generate a resource identifier.
+	// If the resource is a window, then use xproto.NewWindowId. If it's for
+	// a pixmap, then use xproto.NewPixmapId. And so on...
+	wid, _ := xproto.NewWindowId(X)
+
+	// CreateWindow takes a boatload of parameters.
+	xproto.CreateWindow(X, screen.RootDepth, wid, screen.Root,
+		0, 0, 500, 500, 0,
+		xproto.WindowClassInputOutput, screen.RootVisual, 0, []uint32{})
+
+	// This call to ChangeWindowAttributes could be factored out and
+	// included with the above CreateWindow call, but it is left here for
+	// instructive purposes. It tells X to send us events when the 'structure'
+	// of the window is changed (i.e., when it is resized, mapped, unmapped,
+	// etc.) and when a key press or a key release has been made when the
+	// window has focus.
+	// We also set the 'BackPixel' to white so that the window isn't butt ugly.
+	xproto.ChangeWindowAttributes(X, wid,
+		xproto.CwBackPixel|xproto.CwEventMask,
+		[]uint32{ // values must be in the order defined by the protocol
+			0xffffffff,
+			xproto.EventMaskStructureNotify |
+				xproto.EventMaskKeyPress |
+				xproto.EventMaskKeyRelease})
+
+	// MapWindow makes the window we've created appear on the screen.
+	// We demonstrated the use of a 'checked' request here.
+	// A checked request is a fancy way of saying, "do error handling
+	// synchronously." Namely, if there is a problem with the MapWindow request,
+	// we'll get the error *here*. If we were to do a normal unchecked
+	// request (like the above CreateWindow and ChangeWindowAttributes
+	// requests), then we would only see the error arrive in the main event
+	// loop.
+	//
+	// Typically, checked requests are useful when you need to make sure they
+	// succeed. Since they are synchronous, they incur a round trip cost before
+	// the program can continue, but this is only going to be noticeable if
+	// you're issuing tons of requests in succession.
+	//
+	// Note that requests without replies are by default unchecked while
+	// requests *with* replies are checked by default.
+	err := xproto.MapWindowChecked(X, wid).Check()
+	if err != nil {
+		fmt.Printf("Checked Error for mapping window %d: %s\n", wid, err)
+	} else {
+		fmt.Printf("Map window %d successful!\n", wid)
+	}
+
+	// This is an example of an invalid MapWindow request and what an error
+	// looks like.
+	err = xproto.MapWindowChecked(X, 0).Check()
+	if err != nil {
+		fmt.Printf("Checked Error for mapping window 0x1: %s\n", err)
+	} else { // neva
+		fmt.Printf("Map window 0x1 successful!\n")
+	}
+
+	// Start the main event loop.
+	for {
+		// WaitForEvent either returns an event or an error and never both.
+		// If both are nil, then something went wrong and the loop should be
+		// halted.
+		//
+		// An error can only be seen here as a response to an unchecked
+		// request.
+		ev, xerr := X.WaitForEvent()
+		if ev == nil && xerr == nil {
+			fmt.Println("Both event and error are nil. Exiting...")
+			return
+		}
+
+		if ev != nil {
+			fmt.Printf("Event: %s\n", ev)
+		}
+		if xerr != nil {
+			fmt.Printf("Error: %s\n", xerr)
+		}
+	}
 }
