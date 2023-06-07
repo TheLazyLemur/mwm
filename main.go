@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sync"
+	"runtime"
+	"time"
 
 	"os/exec"
 	"os/signal"
@@ -14,15 +15,9 @@ import (
 	"github.com/BurntSushi/xgb/xproto"
 )
 
-func runKitty() {
-	cmd := exec.Command("kitty")
-
-	err := cmd.Run()
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
+func init() {
+	// GLFW event handling must run on the main OS thread
+	runtime.LockOSThread()
 }
 
 func main() {
@@ -31,18 +26,16 @@ func main() {
 	// listen for termination signals to gracefully exit
 	// event loop to handle x events
 	// Handle the event
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-		newFunction()
-	}()
-
-	wg.Wait()
+	newFunction()
 }
 
 func newFunction() {
+	go func() {
+		time.Sleep(time.Second * 10)
+		cmd := exec.Command("nitrogen", "--restore")
+		_ = cmd.Run()
+	}()
+
 	X, err := xgb.NewConn()
 	if err != nil {
 		log.Fatal(err)
@@ -53,7 +46,6 @@ func newFunction() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	go runKitty()
 
 	setupSignalHandler()
 
