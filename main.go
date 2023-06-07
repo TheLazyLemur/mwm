@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
-
-	"os/exec"
 	"os/signal"
 	"syscall"
 
@@ -20,11 +17,11 @@ func main() {
 
 func xStuff() {
 	go func() {
-		go func() {
-			time.Sleep(time.Second * 10)
-			cmd := exec.Command("nitrogen", "--restore")
-			_ = cmd.Run()
-		}()
+		// go func() {
+		// 	time.Sleep(time.Second * 10)
+		// 	cmd := exec.Command("nitrogen", "--restore")
+		// 	_ = cmd.Run()
+		// }()
 
 		X, err := xgb.NewConn()
 		if err != nil {
